@@ -302,7 +302,7 @@ class Models:
 
     def create_model(self):
         IMG_FULL_PATH = f'data/{self.PCB_name}/img_full'
-        IMG_FRAME_PATH = f'data/{self.PCB_name}/img_full'
+        IMG_FRAME_PATH = f'data/{self.PCB_name}/img_frame'
         IMG_FRAME_LOG_PATH = f'data/{self.PCB_name}/img_frame_log'
         MODEL_PATH = f'data/{self.PCB_name}/models'
         mkdir(IMG_FULL_PATH)

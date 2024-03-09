@@ -1,3 +1,8 @@
+### install
+    pip install pygame
+    pip install opencv-python
+    pip install tensorflow
+    pip install matplotlib
 
 ### data folder
     < data >
