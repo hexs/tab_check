@@ -7,15 +7,17 @@ from func.constant import *
 from datetime import datetime
 import os
 import cv2
+import numpy as np
 
 
 class Frame:
-    def __init__(self, name: str, rect: Union[list, tuple], shape: Tuple[int, int] = (0, 0)):
+    def __init__(self, name: str, rect: Union[list, tuple], wh: Tuple[int, int] = (0, 0)):
         self.name = name
         self.rect = rect
         self.x, self.y, self.dx, self.dy = rect
         self.index__next__ = 0
-        self.shape = shape
+        self.wh = wh
+        self.img_w, self.img_h = wh
 
     def __str__(self):
         return (f'{UNDERLINE}{BOLD}{CYAN}{self.x}{ENDC}{UNDERLINE} {BOLD}{PINK}{self.y}{ENDC} -> '
@@ -42,21 +44,17 @@ class Frame:
         return self.x, self.y, self.dx, self.dy
 
     def pix_xywh(self, **kwargs):
-        if kwargs.get('shape'):
-            self.shape = kwargs.get('shape')
-        x = round((self.x - self.dx / 2) * self.shape[0])
-        y = round((self.y - self.dy / 2) * self.shape[1])
-        w = round(self.dx * self.shape[0])
-        h = round(self.dy * self.shape[1])
+        x = round((self.x - self.dx / 2) * self.img_w)
+        y = round((self.y - self.dy / 2) * self.img_h)
+        w = round(self.dx * self.img_w)
+        h = round(self.dy * self.img_h)
         return x, y, w, h
 
     def pix_xyxy(self, **kwargs):
-        if kwargs.get('shape'):
-            self.shape = kwargs.get('shape')
-        x1 = round((self.x - self.dx / 2) * self.shape[0])
-        y1 = round((self.y - self.dy / 2) * self.shape[1])
-        x2 = round((self.x + self.dx / 2) * self.shape[0])
-        y2 = round((self.y + self.dy / 2) * self.shape[1])
+        x1 = round((self.x - self.dx / 2) * self.img_w)
+        y1 = round((self.y - self.dy / 2) * self.img_h)
+        x2 = round((self.x + self.dx / 2) * self.img_w)
+        y2 = round((self.y + self.dy / 2) * self.img_h)
         return x1, y1, x2, y2
 
     def pix_x1(self, **kwargs):
@@ -76,12 +74,10 @@ class Frame:
         return y2
 
     def cv2_rectangle(self, img, **kwargs):
-        if kwargs.get('shape'):
-            self.shape = kwargs.get('shape')
-        x1 = int((self.x - self.dx / 2) * self.shape[0])
-        y1 = int((self.y - self.dy / 2) * self.shape[1])
-        x2 = int((self.x + self.dx / 2) * self.shape[0])
-        y2 = int((self.y + self.dy / 2) * self.shape[1])
+        x1 = int((self.x - self.dx / 2) * self.img_w)
+        y1 = int((self.y - self.dy / 2) * self.img_h)
+        x2 = int((self.x + self.dx / 2) * self.img_w)
+        y2 = int((self.y + self.dy / 2) * self.img_h)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 1)
 
     def save(self, img, path):
@@ -97,48 +93,57 @@ class Frame:
 
 
 class Model:
-    def __init__(self, model_name: str):
+
+    def __init__(self, model_name: str, PCB_name: str, wh):
         self.model_name = model_name
+        self.model = None
+        self.PCB_name = PCB_name
+        self.IMG_FULL_PATH = f'data/{self.PCB_name}/img_full'
+        self.IMG_FRAME_PATH = f'data/{self.PCB_name}/img_frame'
+        self.IMG_FRAME_LOG_PATH = f'data/{self.PCB_name}/img_frame_log'
+        self.MODEL_PATH = f'data/{self.PCB_name}/models'
+
+        self.wh = wh
+        self.img_w, self.img_h = wh
         self.frames = {}
         self.class_name = []
+        self.class_name_of_model = []
         self.img_height = 180
         self.img_width = 180
         self.batch_size = 32
-        self.epochs = 8
+        self.epochs = 1
+
+    def __str__(self):
+        return f'{BLUE}Model({self.model_name}){ENDC}'
 
     def add_frame(self, name: str, rect: Union[list, tuple]):
-        self.frames[name] = Frame(name, rect)
+        self.frames[name] = Frame(name, rect, self.wh)
 
-    def corp_img(self, PCB_name):
-        IMG_FULL_PATH = f'data/{PCB_name}/img_full'
-        IMG_FRAME_PATH = f'data/{PCB_name}/img_frame'
-        IMG_FRAME_LOG_PATH = f'data/{PCB_name}/img_frame_log'
-        MODEL_PATH = f'data/{PCB_name}/models'
-
-        png_and_txt_list = os.listdir(IMG_FULL_PATH)
+    def corp_img(self):
+        png_and_txt_list = os.listdir(self.IMG_FULL_PATH)
         png_and_txt_list = list(
             set(file.split('.')[0] for file in png_and_txt_list if file.endswith('.png')) &
             set(file.split('.')[0] for file in png_and_txt_list if file.endswith('.txt')))
         png_and_txt_list = sorted(png_and_txt_list, reverse=True)
         for i, file_name in enumerate(png_and_txt_list, start=1):
             # file_name is 0807 143021, ...
-            frames_list = open(fr"{IMG_FULL_PATH}/{file_name}.txt").readlines()
+            frames_list = open(fr"{self.IMG_FULL_PATH}/{file_name}.txt").readlines()
             print(f'{i}/{len(png_and_txt_list)} {file_name}')
             for data_text in frames_list:
                 frame_name, status = data_text.strip().split(':')  # _________________ ชื่อใน .txt และ class_name
                 if frame_name not in self.frames.keys():  # __________________________ ชื่อใน .txt ไม่ตรง
                     continue
-                img = cv2.imread(fr"{IMG_FULL_PATH}/{file_name}.png")
+                img = cv2.imread(fr"{self.IMG_FULL_PATH}/{file_name}.png")
                 pix_Y, pix_X, _ = img.shape
                 x1, y1, x2, y2 = self.frames[frame_name].pix_xyxy(shape=(pix_X, pix_Y))
 
                 img_crop_namefile = f'{status} {frame_name} {file_name}.png'
-                mkdir(fr"{IMG_FRAME_PATH}/{self.model_name}")
-                mkdir(fr"{IMG_FRAME_PATH}/{self.model_name}/{status}")
-                mkdir(fr"{IMG_FRAME_LOG_PATH}/{self.model_name}")
+                mkdir(fr"{self.IMG_FRAME_PATH}/{self.model_name}")
+                mkdir(fr"{self.IMG_FRAME_PATH}/{self.model_name}/{status}")
+                mkdir(fr"{self.IMG_FRAME_LOG_PATH}/{self.model_name}")
 
                 img_crop = img[y1:y2, x1:x2]
-                cv2.imwrite(fr"{IMG_FRAME_LOG_PATH}/{self.model_name}/{img_crop_namefile}", img_crop)
+                cv2.imwrite(fr"{self.IMG_FRAME_LOG_PATH}/{self.model_name}/{img_crop_namefile}", img_crop)
 
                 for shift_y in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
                     for shift_x in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
@@ -153,11 +158,37 @@ class Model:
                                 img_crop_BC = controller(img_crop_BC, b, c)
 
                                 img_crop_namefile = f'{file_name} {frame_name} {status} {shift_y} {shift_x} {b} {c}.png'
-                                cv2.imwrite(fr"{IMG_FRAME_PATH}/{self.model_name}/{status}/{img_crop_namefile}",
+                                cv2.imwrite(fr"{self.IMG_FRAME_PATH}/{self.model_name}/{status}/{img_crop_namefile}",
                                             img_crop_BC)
         print()
 
-    def fit_model(self, PCB_name):
+    def load_model(self):
+        from keras import models
+        # path = os.path.join(f'{self.MODEL_PATH}/model_name.h5')
+        path = os.path.join(f'{self.MODEL_PATH}/{self.model_name}.h5')
+        print(path)
+        self.model = models.load_model(path)
+        with open(os.path.join(self.MODEL_PATH, self.model_name + '.json')) as f:
+            string = f.read()
+        self.class_name_of_model = json.loads(string)
+
+    def _predict_(self, img):
+        for frame_name, frame in self.frames.items():
+            x1, y1, x2, y2 = frame.pix_xyxy()
+            img_crop = img[y1:y2, x1:x2]
+            img_resized = cv2.resize(img_crop, (180, 180))
+            img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+            img_array4 = np.expand_dims(img_rgb, axis=0)
+
+            predictions = self.model.predict_on_batch(img_array4)
+            exp_x = [2.7 ** x for x in predictions[0]]
+            percent_score_list = [round(x * 100 / sum(exp_x)) for x in exp_x]
+            highest_score_index = np.argmax(predictions[0])  # 3
+            highest_score_name = self.class_name_of_model[highest_score_index]
+            highest_score_percent = percent_score_list[highest_score_index]
+            return highest_score_name, highest_score_percent
+
+    def fit_model(self):
         import shutil
         import tensorflow as tf
         from keras import layers, models
@@ -165,17 +196,12 @@ class Model:
         import pathlib
         import matplotlib.pyplot as plt
 
-        IMG_FULL_PATH = f'data/{PCB_name}/img_full'
-        IMG_FRAME_PATH = f'data/{PCB_name}/img_frame'
-        IMG_FRAME_LOG_PATH = f'data/{PCB_name}/img_frame_log'
-        MODEL_PATH = f'data/{PCB_name}/models'
-
-        data_dir = pathlib.Path(rf'{IMG_FRAME_PATH}/{self.model_name}')
+        data_dir = pathlib.Path(rf'{self.IMG_FRAME_PATH}/{self.model_name}')
         image_count = len(list(data_dir.glob('*/*.png')))
         print(f'image_count = {image_count}')
 
         print('data_dir is ', data_dir)
-        print(555,data_dir)
+        print(555, data_dir)
         train_ds, val_ds = tf.keras.utils.image_dataset_from_directory(
             data_dir,
             validation_split=0.2,
@@ -186,7 +212,7 @@ class Model:
 
         class_names = train_ds.class_names
         print('class_names =', class_names)
-        with open(fr'{MODEL_PATH}/{self.model_name}.json', 'w') as file:
+        with open(fr'{self.MODEL_PATH}/{self.model_name}.json', 'w') as file:
             file.write(json.dumps(class_names, indent=4))
 
         # Visualize the data
@@ -197,7 +223,7 @@ class Model:
                 plt.imshow(images[i].numpy().astype("uint8"))
                 plt.title(class_names[labels[i]])
                 plt.axis("off")
-        plt.savefig(f'{MODEL_PATH}/{self.model_name}.png')
+        plt.savefig(f'{self.MODEL_PATH}/{self.model_name}.png')
 
         for image_batch, labels_batch in train_ds:
             print(image_batch.shape)
@@ -210,13 +236,13 @@ class Model:
         val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
 
         # Standardize the data
-        # normalization_layer = layers.Rescaling(1. / 255)
+        normalization_layer = layers.Rescaling(1. / 255)
 
-        # normalized_ds = train_ds.map(lambda x, y: (normalization_layer(x), y))
-        # image_batch, labels_batch = next(iter(normalized_ds))
-        # first_image = image_batch[0]
-        # # Notice the pixel values are now in `[0,1]`.
-        # print(np.min(first_image), np.max(first_image))
+        normalized_ds = train_ds.map(lambda x, y: (normalization_layer(x), y))
+        image_batch, labels_batch = next(iter(normalized_ds))
+        first_image = image_batch[0]
+        # Notice the pixel values are now in `[0,1]`.
+        print(np.min(first_image), np.max(first_image))
 
         # Create the model
         num_classes = len(class_names)
@@ -238,6 +264,7 @@ class Model:
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                       metrics=['accuracy'])
         model.summary()
+
         history = model.fit(train_ds, validation_data=val_ds, epochs=self.epochs)
 
         # Visualize training results
@@ -259,20 +286,21 @@ class Model:
         plt.title(self.model_name)
 
         # plt.show()
-        plt.savefig(fr'{MODEL_PATH}/{self.model_name}_graf.png')
-        model.save(os.path.join(MODEL_PATH, f'{self.model_name}.h5'))
+        plt.savefig(fr'{self.MODEL_PATH}/{self.model_name}_graf.png')
+        model.save(os.path.join(self.MODEL_PATH, f'{self.model_name}.h5'))
         # delete IMG_FRAME_PATH
-        shutil.rmtree(fr"{IMG_FRAME_PATH}/{self.model_name}")
-
+        shutil.rmtree(fr"{self.IMG_FRAME_PATH}/{self.model_name}")
 
 
 class Models:
-    def __init__(self, PCB_name):
+    def __init__(self, PCB_name, wh):
         self.models = {}
         self.PCB_name = PCB_name
+        self.wh = wh
+        self.img_w, self.img_h = wh
 
     def add_model(self, name):
-        self.models[name] = Model(name)
+        self.models[name] = Model(name, self.PCB_name, self.wh)
 
     def load(self):
         with open(f'data/{self.PCB_name}/models.json', ) as f:
@@ -287,6 +315,18 @@ class Models:
                     xywh = vv['xywh']
                     self.models[model_name].add_frame(frame_name, xywh)
                 self.class_name = class_name
+
+    def load_model(self):
+        for k, model in self.models.items():
+            print(f'{PINK}load model {k}{ENDC}')
+            model.load_model()
+
+    def predict(self, img: np):
+        for k, m in self.models.items():
+            img2 = img.copy()
+            print(f'{PINK}predict {k}{ENDC}')
+            r = m._predict_(img2)
+            print(r)
 
     def to_dict(self):
         d = {}
@@ -310,33 +350,40 @@ class Models:
         mkdir(IMG_FRAME_LOG_PATH)
         mkdir(MODEL_PATH)
         for name, model in m.models.items():
-            model.corp_img(self.PCB_name)
-            model.fit_model(self.PCB_name)
+            model.corp_img()
+            model.fit_model()
 
 
 if __name__ == '__main__':
-    # cap = cv2.VideoCapture(0)
-    # w, h = cap.get(3), cap.get(4)
-    w, h = 640.0, 480.0
-    m = Models('tab')
+    cap = cv2.VideoCapture(0)
+    w, h = cap.get(3), cap.get(4)
+
+    m = Models('tab', (w, h))
     m.load()
+
+    # m.create_model()
+    m.load_model()
+
     # m.add_model('m1')
     # m.models['m1'].add_frame('tap1', (0.08, 0.55, 0.13, 0.18))
     # m.add_model('m2')
     # m.models['m2'].add_frame('tap2', (0.86, 0.64, 0.2, 0.44))
 
-    m.create_model()
-    # while True:
-    #     _, img = cap.read()
-    #     for k, v in m.models.items():
-    #         for kk, vv in v.frame.items():
-    #             vv.rect.cv2_rectangle(img)
-    #     cv2.imshow('img', img)
-    #     key = cv2.waitKey(1)
-    #
-    #     if key == ord(' '):
-    #         print('save')
-    #         mkdir('img_full')
-    #         for k, v in m.models.items():
-    #             for kk, vv in v.frame.items():
-    #                 vv.save(img, rf'img_full')
+    while True:
+        _, img = cap.read()
+        for k, v in m.models.items():
+            for kk, vv in v.frames.items():
+                vv.cv2_rectangle(img)
+        cv2.imshow('img', img)
+        key = cv2.waitKey(1)
+
+        if key == ord(' '):
+            print('save')
+            mkdir('img_full')
+            for k, v in m.models.items():
+                for kk, vv in v.frames.items():
+                    vv.save(img, rf'img_full')
+
+        if key == ord('p'):
+            m.predict(img)
+            print()
