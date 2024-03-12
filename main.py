@@ -106,12 +106,11 @@ class Model:
         self.wh = wh
         self.img_w, self.img_h = wh
         self.frames = {}
-        self.class_name = []
-        self.class_name_of_model = []
+        self.class_names = []
         self.img_height = 180
         self.img_width = 180
         self.batch_size = 32
-        self.epochs = 1
+        self.epochs = 3
 
     def __str__(self):
         return f'{BLUE}Model({self.model_name}){ENDC}'
@@ -130,7 +129,7 @@ class Model:
             frames_list = open(fr"{self.IMG_FULL_PATH}/{file_name}.txt").readlines()
             print(f'{i}/{len(png_and_txt_list)} {file_name}')
             for data_text in frames_list:
-                frame_name, status = data_text.strip().split(':')  # _________________ ชื่อใน .txt และ class_name
+                frame_name, status = data_text.strip().split(':')  # _________________ ชื่อใน .txt และ class_names
                 if frame_name not in self.frames.keys():  # __________________________ ชื่อใน .txt ไม่ตรง
                     continue
                 img = cv2.imread(fr"{self.IMG_FULL_PATH}/{file_name}.png")
@@ -145,13 +144,17 @@ class Model:
                 img_crop = img[y1:y2, x1:x2]
                 cv2.imwrite(fr"{self.IMG_FRAME_LOG_PATH}/{self.model_name}/{img_crop_namefile}", img_crop)
 
-                for shift_y in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
-                    for shift_x in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
+                # for shift_y in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
+                #     for shift_x in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
+                for shift_y in [-2, 0]:
+                    for shift_x in [-2, 0]:
                         img_crop = img[y1 + shift_y:y2 + shift_y, x1 + shift_x:x2 + shift_x]
 
                         # add contran blige
                         brightness = [230, 242, 255, 267, 280]
                         contrast = [114, 120, 127, 133, 140]
+                        brightness = [242, 255, 267]
+                        contrast = [120, 127, 133]
                         for b in brightness:
                             for c in contrast:
                                 img_crop_BC = img_crop.copy()
@@ -170,7 +173,7 @@ class Model:
         self.model = models.load_model(path)
         with open(os.path.join(self.MODEL_PATH, self.model_name + '.json')) as f:
             string = f.read()
-        self.class_name_of_model = json.loads(string)
+        self.class_names = json.loads(string)
 
     def _predict_(self, img):
         for frame_name, frame in self.frames.items():
@@ -184,7 +187,7 @@ class Model:
             exp_x = [2.7 ** x for x in predictions[0]]
             percent_score_list = [round(x * 100 / sum(exp_x)) for x in exp_x]
             highest_score_index = np.argmax(predictions[0])  # 3
-            highest_score_name = self.class_name_of_model[highest_score_index]
+            highest_score_name = self.class_names[highest_score_index]
             highest_score_percent = percent_score_list[highest_score_index]
             return highest_score_name, highest_score_percent
 
@@ -210,10 +213,10 @@ class Model:
             image_size=(self.img_height, self.img_width),
             batch_size=self.batch_size)
 
-        class_names = train_ds.class_names
-        print('class_names =', class_names)
+        self.class_names = train_ds.class_names
+        print('train_ds.class_names =', self.class_names)
         with open(fr'{self.MODEL_PATH}/{self.model_name}.json', 'w') as file:
-            file.write(json.dumps(class_names, indent=4))
+            file.write(json.dumps(self.class_names, indent=4))
 
         # Visualize the data
         plt.figure(figsize=(20, 10))
@@ -221,7 +224,7 @@ class Model:
             for i in range(32):
                 ax = plt.subplot(4, 8, i + 1)
                 plt.imshow(images[i].numpy().astype("uint8"))
-                plt.title(class_names[labels[i]])
+                plt.title(self.class_names[labels[i]])
                 plt.axis("off")
         plt.savefig(f'{self.MODEL_PATH}/{self.model_name}.png')
 
@@ -245,9 +248,9 @@ class Model:
         print(np.min(first_image), np.max(first_image))
 
         # Create the model
-        num_classes = len(class_names)
+        num_classes = len(self.class_names)
 
-        model = Sequential([
+        self.model = Sequential([
             layers.Rescaling(1. / 255, input_shape=(self.img_height, self.img_width, 3)),
             layers.Conv2D(16, (3, 3), padding='same', activation='relu'),
             layers.MaxPooling2D(),
@@ -260,12 +263,12 @@ class Model:
             layers.Dense(128, activation='relu'),
             layers.Dense(num_classes)
         ])
-        model.compile(optimizer='adam',
-                      loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                      metrics=['accuracy'])
-        model.summary()
+        self.model.compile(optimizer='adam',
+                           loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                           metrics=['accuracy'])
+        self.model.summary()
 
-        history = model.fit(train_ds, validation_data=val_ds, epochs=self.epochs)
+        history = self.model.fit(train_ds, validation_data=val_ds, epochs=self.epochs)
 
         # Visualize training results
         acc = history.history['accuracy']
@@ -287,9 +290,9 @@ class Model:
 
         # plt.show()
         plt.savefig(fr'{self.MODEL_PATH}/{self.model_name}_graf.png')
-        model.save(os.path.join(self.MODEL_PATH, f'{self.model_name}.h5'))
+        self.model.save(os.path.join(self.MODEL_PATH, f'{self.model_name}.h5'))
         # delete IMG_FRAME_PATH
-        shutil.rmtree(fr"{self.IMG_FRAME_PATH}/{self.model_name}")
+        # shutil.rmtree(fr"{self.IMG_FRAME_PATH}/{self.model_name}")
 
 
 class Models:
@@ -298,6 +301,7 @@ class Models:
         self.PCB_name = PCB_name
         self.wh = wh
         self.img_w, self.img_h = wh
+        self.class_names_set = []
 
     def add_model(self, name):
         self.models[name] = Model(name, self.PCB_name, self.wh)
@@ -308,13 +312,12 @@ class Models:
             pprint(d)
             print()
             for model_name, v in d.items():
-                class_name = v['class_name']
+                self.class_names_set = v['class_names_set']
                 frames = v['frames']
                 self.add_model(model_name)
                 for frame_name, vv in frames.items():
                     xywh = vv['xywh']
                     self.models[model_name].add_frame(frame_name, xywh)
-                self.class_name = class_name
 
     def load_model(self):
         for k, model in self.models.items():
@@ -335,7 +338,7 @@ class Models:
             d[k]['frames'] = {}
             for kk, frame in model.frames.items():
                 d[k]['frames'][kk] = {'xywh': frame.xywh()}
-            d[k]['class_name'] = model.class_name
+            d[k]['class_names'] = model.class_names
         pprint(d)
         with open(f'data/{self.PCB_name}/models.json', 'w') as f:
             f.write(json.dumps(d, indent=4))
@@ -359,15 +362,15 @@ if __name__ == '__main__':
     w, h = cap.get(3), cap.get(4)
 
     m = Models('tab', (w, h))
+
     m.load()
-
-    # m.create_model()
-    m.load_model()
-
     # m.add_model('m1')
     # m.models['m1'].add_frame('tap1', (0.08, 0.55, 0.13, 0.18))
     # m.add_model('m2')
     # m.models['m2'].add_frame('tap2', (0.86, 0.64, 0.2, 0.44))
+
+    m.create_model()
+    # m.load_model()
 
     while True:
         _, img = cap.read()
