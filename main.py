@@ -369,8 +369,8 @@ if __name__ == '__main__':
     # m.add_model('m2')
     # m.models['m2'].add_frame('tap2', (0.86, 0.64, 0.2, 0.44))
 
-    m.create_model()
-    # m.load_model()
+    #m.create_model()
+    m.load_model()
 
     while True:
         _, img = cap.read()
