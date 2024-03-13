@@ -44,6 +44,9 @@ class Frame:
         return self.x, self.y, self.dx, self.dy
 
     def pix_xywh(self, **kwargs):
+        if kwargs.get('shape'):
+            self.shape = kwargs.get('shape')
+            self.img_w, self.img_h = self.shape
         x = round((self.x - self.dx / 2) * self.img_w)
         y = round((self.y - self.dy / 2) * self.img_h)
         w = round(self.dx * self.img_w)
@@ -51,6 +54,9 @@ class Frame:
         return x, y, w, h
 
     def pix_xyxy(self, **kwargs):
+        if kwargs.get('shape'):
+            self.shape = kwargs.get('shape')
+            self.img_w, self.img_h = self.shape
         x1 = round((self.x - self.dx / 2) * self.img_w)
         y1 = round((self.y - self.dy / 2) * self.img_h)
         x2 = round((self.x + self.dx / 2) * self.img_w)
@@ -135,6 +141,8 @@ class Model:
                 img = cv2.imread(fr"{self.IMG_FULL_PATH}/{file_name}.png")
                 pix_Y, pix_X, _ = img.shape
                 x1, y1, x2, y2 = self.frames[frame_name].pix_xyxy(shape=(pix_X, pix_Y))
+                print(img.shape)
+                print(x1, y1, x2, y2)
 
                 img_crop_namefile = f'{status} {frame_name} {file_name}.png'
                 mkdir(fr"{self.IMG_FRAME_PATH}/{self.model_name}")
@@ -369,8 +377,8 @@ if __name__ == '__main__':
     # m.add_model('m2')
     # m.models['m2'].add_frame('tap2', (0.86, 0.64, 0.2, 0.44))
 
-    #m.create_model()
-    m.load_model()
+    m.create_model()
+    # m.load_model()
 
     while True:
         _, img = cap.read()
