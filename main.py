@@ -116,7 +116,7 @@ class Model:
         self.img_height = 180
         self.img_width = 180
         self.batch_size = 32
-        self.epochs = 3
+        self.epochs = 5
 
     def __str__(self):
         return f'{BLUE}Model({self.model_name}){ENDC}'
@@ -151,18 +151,17 @@ class Model:
 
                 img_crop = img[y1:y2, x1:x2]
                 cv2.imwrite(fr"{self.IMG_FRAME_LOG_PATH}/{self.model_name}/{img_crop_namefile}", img_crop)
-
-                # for shift_y in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
-                #     for shift_x in [-4, -3, -2, -1, 0, 1, 2, 3, 4]:
-                for shift_y in [-2, 0]:
-                    for shift_x in [-2, 0]:
+                shift = [-4, -3, -2, -1, 0, 1, 2, 3, 4]
+                # shift = [-2, 0]
+                brightness = [230, 242, 255, 267, 280]
+                contrast = [114, 120, 127, 133, 140]
+                # brightness = [242, 255, 267]
+                # contrast = [120, 127, 133]
+                for shift_y in shift:
+                    for shift_x in shift:
                         img_crop = img[y1 + shift_y:y2 + shift_y, x1 + shift_x:x2 + shift_x]
 
                         # add contran blige
-                        brightness = [230, 242, 255, 267, 280]
-                        contrast = [114, 120, 127, 133, 140]
-                        brightness = [242, 255, 267]
-                        contrast = [120, 127, 133]
                         for b in brightness:
                             for c in contrast:
                                 img_crop_BC = img_crop.copy()
@@ -377,8 +376,8 @@ if __name__ == '__main__':
     # m.add_model('m2')
     # m.models['m2'].add_frame('tap2', (0.86, 0.64, 0.2, 0.44))
 
-    m.create_model()
-    # m.load_model()
+    # m.create_model()
+    m.load_model()
 
     while True:
         _, img = cap.read()
