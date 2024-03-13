@@ -379,21 +379,36 @@ if __name__ == '__main__':
     # m.create_model()
     m.load_model()
 
+    t2 = datetime.now()
     while True:
+        t1 = t2
+        t2 = datetime.now()
+        fps = round(1 / max(0.001, (t2 - t1).total_seconds()))
         _, img = cap.read()
-        for k, v in m.models.items():
-            for kk, vv in v.frames.items():
-                vv.cv2_rectangle(img)
-        cv2.imshow('img', img)
-        key = cv2.waitKey(1)
-
-        if key == ord(' '):
-            print('save')
-            mkdir('img_full')
+        if _:
             for k, v in m.models.items():
                 for kk, vv in v.frames.items():
-                    vv.save(img, rf'img_full')
+                    vv.cv2_rectangle(img)
+            cv2.rectangle(img, (0, 0), (50, 18), (255, 255, 255), -1)
+            cv2.putText(img, f'{fps}', (5, 15), 1, 1, (255, 0, 0), 1)
+            cv2.imshow('img', img)
+            key = cv2.waitKey(1)
 
-        if key == ord('p'):
-            m.predict(img)
-            print()
+            if key == ord(' '):
+                print('save')
+                mkdir('img_full')
+                for k, v in m.models.items():
+                    for kk, vv in v.frames.items():
+                        vv.save(img, rf'img_full')
+
+            if key == ord('p'):
+                dt1 = datetime.now()
+                m.predict(img)
+                dt2 = datetime.now()
+                print('predict time =', (dt2 - dt1).total_seconds())
+                # predict time in computer = 0.02
+                print()
+        else:
+            cap = cv2.VideoCapture(0)
+            print('sleep(2)')
+            time.sleep(2)
