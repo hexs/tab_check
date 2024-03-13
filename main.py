@@ -87,13 +87,13 @@ class Frame:
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 1)
 
     def save(self, img, path):
-        path = f'img_full'
+        path = f'data/tab/img_full'
         mkdir(path)
         namefile = datetime.now().strftime('%y%m%d-%H%M%S')
 
         cv2.imwrite(os.path.join(path, namefile + '.png'), img)
 
-        string = f"{self.name}:{'ng'}\n"
+        string = f"{self.name}:{'ok'}\n"
         with open(os.path.join(path, namefile + '.txt'), 'a') as file:
             file.write(string)
 
@@ -367,7 +367,7 @@ class Models:
 if __name__ == '__main__':
     cap = cv2.VideoCapture(0)
     w, h = cap.get(3), cap.get(4)
-
+    print(w, h)
     m = Models('tab', (w, h))
 
     m.load()
@@ -376,8 +376,8 @@ if __name__ == '__main__':
     # m.add_model('m2')
     # m.models['m2'].add_frame('tap2', (0.86, 0.64, 0.2, 0.44))
 
-    # m.create_model()
-    m.load_model()
+    m.create_model()
+    # m.load_model()
 
     t2 = datetime.now()
     while True:
