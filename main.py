@@ -18,6 +18,7 @@ class Frame:
         self.index__next__ = 0
         self.wh = wh
         self.img_w, self.img_h = wh
+        self.result_predict = '-', 0
 
     def __str__(self):
         return (f'{UNDERLINE}{BOLD}{CYAN}{self.x}{ENDC}{UNDERLINE} {BOLD}{PINK}{self.y}{ENDC} -> '
@@ -85,6 +86,14 @@ class Frame:
         x2 = int((self.x + self.dx / 2) * self.img_w)
         y2 = int((self.y + self.dy / 2) * self.img_h)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 1)
+
+        if self.result_predict[0] == 'ok':
+            color = (0, 200, 0)
+        elif self.result_predict[0] == 'ng':
+            color = (0, 0, 200)
+        else:
+            color = (255, 0, 0)
+        cv2.putText(img, f'{self.result_predict}', (x1, y1), 1, 2, color, 2)
 
     def save(self, img, path):
         path = f'data/tab/img_full'
@@ -196,6 +205,7 @@ class Model:
             highest_score_index = np.argmax(predictions[0])  # 3
             highest_score_name = self.class_names[highest_score_index]
             highest_score_percent = percent_score_list[highest_score_index]
+            frame.result_predict = highest_score_name, highest_score_percent
             return highest_score_name, highest_score_percent
 
     def fit_model(self):
@@ -376,8 +386,8 @@ if __name__ == '__main__':
     # m.add_model('m2')
     # m.models['m2'].add_frame('tap2', (0.86, 0.64, 0.2, 0.44))
 
-    m.create_model()
-    # m.load_model()
+    # m.create_model()
+    m.load_model()
 
     t2 = datetime.now()
     while True:
@@ -401,7 +411,7 @@ if __name__ == '__main__':
                     for kk, vv in v.frames.items():
                         vv.save(img, rf'img_full')
 
-            if key == ord('p'):
+            if key == ord('p') or True:
                 dt1 = datetime.now()
                 m.predict(img)
                 dt2 = datetime.now()
